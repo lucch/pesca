@@ -1,7 +1,7 @@
 This repository is a mirror of [Haskell's "pesca: Proof Editor for Sequent
 Calculus"](https://hackage.haskell.org/package/pesca).
 
-The code was fixed to work with recent versions of GHC.
+The code has been fixed to work with recent versions of GHC.
 
 ---
 
