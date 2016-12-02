@@ -1,0 +1,19 @@
+-- lattice theory
+
+Mtl    (a \wedge b) \leq a
+
+Mtr    (a \wedge b) \leq b
+
+Jnl    a \leq (a \vee b)
+
+Jnr    b \leq (a \vee b)
+
+Unimt  c \leq a & c \leq b -> c \leq (a \wedge b)
+
+Unijn  a \leq c & b \leq c -> (a \vee b) \leq c 
+
+Ref    a \leq a 
+
+Trans  a \leq b & b \leq c -> a \leq c
+
+

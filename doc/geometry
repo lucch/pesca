@@ -1,0 +1,39 @@
+\newcommand{\converg}{\not\parallel}
+
+-- constructive geometry of von Plato (APAL 1995)
+
+irrefDiPt   ~ a \neq a
+
+irrefDiLn   ~ l \neq l
+
+irrefCon    ~ l \converg l
+
+splitDiPt   a \neq b -> a \neq c v b \neq c
+
+splitDiLn   l \neq m -> l \neq n v m \neq n
+
+splitCon    a \converg b -> a \converg c v b \converg c
+
+incLn1      ~ Apt(a,ln(a,b))
+
+incLn2      ~ Apt(b,ln(a,b))
+
+incPt1      ~ Apt(pt(l,m),l)
+
+incPt2      ~ Apt(pt(l,m),m)
+
+incParPt    ~ Apt(a, par(l,a))
+
+incParLn    ~ l \converg  par(l,a)
+
+uni         a \neq b & l \neq m -> Apt(a,l) v Apt(a,m) v Apt(b,l) v Apt(b,m)
+
+unipar      l \neq m -> Apt(a,l) v Apt(a,m) v l \converg m
+
+substDiPtA  Apt(a,l) -> a \neq b v Apt(b,l)
+
+substDiLnA  Apt(a,l) -> l \neq m v Apt(a,m)
+
+substDiLnC  l \converg m -> l \neq n v m \converg n
+
+

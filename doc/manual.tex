@@ -1,0 +1,1020 @@
+\documentstyle[12pt,proof]{article}
+
+\setlength{\oddsidemargin}{0mm}
+%\setlength{\evensidemargin}{0mm}
+\setlength{\evensidemargin}{-2mm}
+\setlength{\topmargin}{-16mm}
+\setlength{\textheight}{240mm}
+\setlength{\textwidth}{158mm}
+
+\newcommand{\bequ}{\begin{quote}}
+\newcommand{\enqu}{\end{quote}}
+\newcommand{\bece}{\begin{center}}
+\newcommand{\ence}{\end{center}}
+\newcommand{\sugmap}[1]{\mbox{$#1^{\mbox{\scriptsize o}}$}}
+
+\newcommand{\PESC}{PESCA}
+
+\title{{\bf \PESC\ --- A Proof Editor for Sequent Calculus}}
+
+\date{Second Version, March 24, 2000}
+
+\author{Aarne Ranta\\
+        {\normalsize \verb6Aarne.Ranta@cs.chalmers.se6}}
+
+\begin{document}
+
+\maketitle
+
+\small
+
+{\bf Abstract}. \PESC\ is a program that helps in the construction of proofs
+in sequent calculus. It works both as a proof editor and as an automatic theorem 
+prover. Proofs constructed in \PESC\ can both be seen on the terminal and printed
+into \LaTeX\ files.
+The user of \PESC\ can choose among different versions of classical and 
+intuitionistic proposition and predicate calculi, and extend them by systems of 
+nonlogical axioms. The aim of this document is to show how to use \PESC. It will
+also give an outline of the implementation of \PESC, which is written in the 
+functional programming language Haskell.
+
+
+\normalsize
+
+
+\section{Introduction}
+
+Sequent calculus was introduced by Gentzen (1934) as a formalization of logic
+suitable for metamathematical considerations, such as consistency 
+proofs. Gentzen also realized that sequent calculus gives a method of automatic
+proof search for intuitionistic proposition calculus. Both of these aspects
+were built upon in later works on proof theory, such as in Kleene (1952) and
+Sch\"utte (1977), and sequent calculus is still a living subject. At the same time,
+it was already realized by Gentzen that sequent calculus is not very
+natural for humans actually to write proofs. It carries around a lot
+of information that humans tend to keep in their heads rather than to put on 
+paper. While greatly improving the performance of machines operating on proofs,
+this information easily obscures the human inspection of them, and actually writing
+sequent calculus proofs in full detail is tedious and error-prone. Thus it
+is obviously a task where a machine can be helpful.
+
+This document will not give an introduction to sequent calculus, let alone to
+logic. In developing the system \PESC, we have followed the book manuscript
+Negri \&\ von Plato (1999), but the
+sufficient background can also be gained from Troelstra \&\ Schwichtenberg
+(1996). The system \PESC\ is not, however, fully compatible with the 
+``older generation'' of sequent calculi {\em \`a la}\ Gentzen and Sch\"utte,
+for reasons that will become clear in the following.
+
+The domain of sequent calculi allows for indefinitely many variations, which are
+not due to disagreements on what should be provable but to different decisions on
+the fine structure of proofs. In terms of provability, it is usually enough to tell
+whether a calculus is {\bf intuitionistic}\ or {\bf classical}. In the properties of
+proof structure, there are many more choices. The very implementation of \PESC\
+precludes most of them, but it still leaves room for different calculi, only some of
+which are included in the basic distribution. These calculi can be characterized as
+having
+\bece
+shared multiset contexts, no structural rules.
+\ence
+But calculi can have single as well as multiple formulae in the succedents
+of their sequents. 
+
+The fundamental common property of the calculi treated by 
+\PESC\ is {\bf top-down determinacy}:
+\bece
+given a conclusion and a rule, the premises are determined.
+\ence
+This property is essential for our method of {\bf top-down proof search}. The user
+of \PESC\ starts with a conclusion, and then tries to {\bf refine}\ it by suggesting
+a rule. If the rule is applicable, the proof of the conclusion is completed by
+the derived premises, and the proof search can continue from them. A branch in a
+proof is successfully terminated when a rule gives an empty list of premises.
+A branch fails if no rule applies to it. This simple procedure, which we have 
+adopted from the proof editor ALF (Magnusson 1994) for the much richer formalism of 
+constructive type theory, is not applicable to calculi that are not top-down 
+determinate.
+
+(The term top-down runs counter to the standard typographical layout of proof 
+trees, where premises appear above conclusions.
+The term is frequent in computer science, where it may come from the
+standard layout of syntax trees, where the root is above the trees.
+In proof theory, the confusion is usually avoided by saying ``root first'' instead,
+as do Negri \&\ von Plato (1999).)
+
+
+\section{Two example sessions}
+
+\subsection{A proof in proposition calculus}
+
+Let us first construct a proof of the law of commutativity for disjunction,
+in the sequent form,
+\[
+A \vee B \Rightarrow\ B \vee A.
+\]
+Having started \PESC\ (see Section 5 below to find out how), we see its prompt
+\verb6|-6. We then enter a 
+{\bf new goal}\ by the command {\tt n}\ followed by the sequent written in
+ASCII notation:
+\begin{verbatim}
+  |- n A v B => B v A
+\end{verbatim}
+The reply of \PESC\ is a new {\bf proof tree}, consisting of the conclusion alone, 
+which is the only {\bf subgoal}\ of the tree. Subgoals are identified by sequences
+of digits starting from the root, as in the following example:
+\[
+\infer{1}{
+ \infer{11}{111 & 112}
+ &
+ \infer{12}{121}
+ &
+ 13
+ }
+\]
+The command {\tt s}\ shows the current subgoals, of which we still have just one,
+numbered $1$. More interestingly, the command {\tt a}\ shows the {\bf applicable 
+rules}\ for a given subgoal. In the situation where we are in our proof, we have
+\begin{verbatim}
+  |- a 1
+
+  r 1 A1 S1 Lv  -- A v B => B v A
+  r 1 A1 S1 Rv1 -- A v B => B v A
+  r 1 A1 S1 Rv2 -- A v B => B v A
+\end{verbatim}
+Any of the displayed {\tt r}\ commands (line segments preceding \verb6--6) 
+can be cut and pasted to a command line, and it gives rise to a {\bf refinement}\
+of the subgoal, an extension of the tree that is determined by the chosen rule.
+For instance, choosing the first alternative takes us to a proof by the left
+disjunction rule from two premises,
+\begin{verbatim}
+  |- r 1 A1 S1 Lv
+
+  A => B v A   B => B v A
+  -----------------------
+  A v B => B v A
+\end{verbatim}
+As will be explained below, 
+the part {\tt A1 S1}\ specifies the active formulae in the
+antecedent and the succedent; when the first formulae are chosen, like here, this
+part could be omitted, like in the next refinement,
+\begin{verbatim}
+  |- r 11 Rv2
+  
+  A => A
+  ----------
+  A => B v A   B => B v A
+  -----------------------
+  A v B => B v A
+\end{verbatim}
+The left branch {\tt 111}\ can now be refined by the {\tt ax}\ rule, 
+which does not generate any more subgoals:
+\begin{verbatim}
+  |- r 111 ax
+\end{verbatim}
+The right branch {\tt 12}\ can be refined analogously with {\tt 11}, by
+{\tt Rv1}\ followed by {\tt ax}. When the proof is ready, its ASCII appearance
+is usually not of very good quality. Now, at the latest, it is rewarding to use
+the {\tt l}\ command to write the current proof into a \LaTeX\ document, which
+looks as follows when processed:
+\[
+\infer[{\scriptstyle L\vee }]{
+A \vee  B \Rightarrow  B \vee  A
+}{
+\infer[{\scriptstyle R\vee 2}]{
+A \Rightarrow  B \vee  A
+}{
+A \Rightarrow  A^{ax}
+}
+ & 
+\infer[{\scriptstyle R\vee 1}]{
+B \Rightarrow  B \vee  A
+}{
+B \Rightarrow  B^{ax}
+}
+}
+\]
+
+
+\subsection{A proof in predicate calculus}
+
+In predicate calculus, one more command is usually needed than in propositional
+calculus: the command {\tt i}\ for {\bf instantiating}\ parametres. Logically, a 
+parametre such as {\tt t}\ in the existential introduction rule $R\exists$
+\[
+\infer{\Gamma \Rightarrow (\exists x)A}{\Gamma \Rightarrow A(t/x)}
+\]
+is just like another premise, which calls for a construction to be complete.
+This logic is made explicit in the $\Sigma$ introduction rule of Martin-L\"of's 
+type theory, and simplifies greatly the implementation of inference rules.
+Here, staying faithful to the syntax of predicate calculus, we have to treat
+such parametres as hidden premises in the rules. Thus a proof that has 
+uninstantiated parametres is incomplete in the same way as a proof that has 
+open subgoals. 
+
+Let us prove the quantifier switch law,
+\[
+(\exists y)(\forall x)C(x,y) \Rightarrow (\forall x)(\exists y)C(x,y).
+\]
+After introducing the goal, we make a couple of ordinary refinements:
+\begin{verbatim}
+  |- n (/Ey)(/Ax)C(x,y) => (/Ax)(/Ey)C(x,y)
+  |- r 1 A1 S1 R/A
+  |- r 11 L/E
+  |- r 111 A1 S1 R/E
+\end{verbatim}
+The last refinement introduces a parametre {\tt t}, which we instantiate by 
+{\tt y},
+\begin{verbatim}
+  |- i t y
+\end{verbatim}
+Continuing by {\tt L/A}, {\tt x}, and {\tt ax}, we obtain a complete proof,
+in which we have afterwards marked the two instantiations made:
+\[
+\infer[{\scriptstyle R\forall }]{
+(\exists y)(\forall x)C(x,y) \Rightarrow  (\forall x)(\exists y)C(x,y)
+}{
+\infer[{\scriptstyle L\exists }]{
+(\exists y)(\forall x)C(x,y) \Rightarrow  (\exists y)C(x,y)
+}{
+\infer[{\scriptstyle R\exists y}]{
+(\forall x)C(x,y) \Rightarrow  (\exists y)C(x,y)
+}{
+\infer[{\scriptstyle L\forall x}]{
+(\forall x)C(x,y) \Rightarrow  C(x,y)
+}{
+C(x,y), (\forall x)C(x,y) \Rightarrow  C(x,y)^{ax}
+}
+}
+}
+}
+\]
+
+
+\section{The command language}
+
+This section gives a systematic description of all \PESC\ commands. Some of them
+were already exemplified in the two sessions of the previous section.
+
+Each command consist of one character followed by zero or more arguments, 
+some of which may be optional. In the following, as in the on-line help
+file of \PESC, the arguments are denoted by words indicating their
+types. Optional arguments are enclosed in brackets. Typewriter font is used for 
+terminal symbols.
+
+Fully to understand the commands, one should know that a \PESC\ session takes place
+in an {\bf environment}, which changes as a function of the commands. The 
+environment consists of a {\bf current calculus}\ and a {\bf current proof}.
+In the beginning, the calculus is the intuitionistic predicate calculus 
+G3i (cf.\ Appendix), and the proof is the one consisting of the impossible 
+empty sequent $\Rightarrow$. While many of the commands affect the current proof, 
+only two of them affect the current calculus.
+
+\newcommand{\ssubsection}[2]{\bequ #2 (#1) \enqu}
+
+\ssubsection{refine}{\verb6r6 goal [\verb6A6 int] [\verb6S6 int] rule}
+replaces the goal by an application of the rule, if applicable,
+and leaves the current proof unchanged otherwise. The goal is denoted by a 
+sequence of digits, as explained in the previous section.
+The options \verb6[A6 int\verb6]6 \verb6[S6 int\verb6]6 reset the active formulae
+in the antecedent and the succedent of the goal---by default, the active formula is
+number 1, which in the antecedent is the first and in the succedent the last 
+printed formula. If the number exceeds the length, resetting the active formula has 
+no effect.
+
+\ssubsection{instantiate}{\verb6i6 parametre term}
+replaces all occurrences of the parametre in the current 
+proof by the term. The term can be any variable or constant or other parametre, 
+or a complex term built by function applications. Notice that, if a parametre
+occurs in the term, it must be prefixed by the character {\tt ?}, so that it
+is not parsed as a variable (cf.\ Section 4.3 below).
+
+\ssubsection{try to refine}{\verb6t6 goal int}
+replaces the goal by the first proof that it finds by recursively
+trying to apply all rules maximally int times. This is the 
+{\bf automatic proof search method}\ of \PESC, based on brute force but 
+always terminating. With
+certain calculi, such as G4ip, this method always finds a proof
+after a predictable number of steps. With predicate calculus rules that require 
+instantiations, the method usually fails.
+
+\ssubsection{new}{\verb6n6 sequent}
+replaces the current proof by a proof consisting of the sequent that is
+its open subgoal number 1. The old proof cannot be restored. But the work is
+not completely lost: one can save the history of the session by the command 
+{\tt h}\ and then follow the same steps to construct again whatever was
+constructed in the same session.
+
+\ssubsection{undo}{\verb6u6 subtree}
+replaces the subtree by a goal consisting of the conclusion of the subtree.
+Subtrees are identified by sequences of digits in the same way as subgoals.
+
+\ssubsection{show subgoals}{\verb6s6}
+shows all open subgoals in the format `goal {\tt = }\ sequent'. If the system
+responds by showing nothing, the current proof is complete.
+
+\ssubsection{applicable rules}{\verb6a6 goal}
+shows all refinement commands applicable to the goal. To each command, the
+corresponding permutation of the goal sequent is appended, separated by \verb6--6.
+
+\ssubsection{change calculus}{\verb6c6 calculus}
+changes the current calculus. The help command {\tt ?}\ shows available calculi,
+and a set of them is also shown in the Appendix. As a calculus is just a set 
+of rules, calculi can be unioned by the operation {\tt +}. Thus the command
+\verb6c G3c + Geq6 selects classical predicate calculus with equality.
+
+\ssubsection{read axioms}{\verb6x6 file}
+reads a file with nonlogical axioms, parses it into rules, adds the rules into
+the current calculus, and writes the rules into the file {\tt myaxioms.tex}.
+The command also makes a system call to perform the \LaTeX\  processing and show
+the xdvi imade on the background.
+The theory of nonlogical axioms is explained in chapter 6 of Negri \&\ von Plato 
+(1999). The syntax of axiom files is explained in Section 4.4 below.
+
+\ssubsection{print proof in a \LaTeX\ file}{\verb6l6 [file]}
+prints the current proof in \LaTeX\ format in the indicated file. If no file
+name is given, the name is {\tt myproof.tex}. Old files are overwritten without 
+warning. To process the \LaTeX\ file, the style file {\tt proof.sty}\ 
+(Tatsuta 1990) is needed. It is distributed together with \PESC.
+The command also makes a system call to perform the \LaTeX\  processing and show
+the xdvi imade on the background.
+
+\ssubsection{print proof in natural deduction}{\verb6d6 [file]}
+prints the current proof in natural deduction 
+\LaTeX\ format in the indicated file. If no file
+name is given, the name is {\tt mydeduction.tex}. Old files are overwritten without 
+warning. To process the \LaTeX\ file, the style file {\tt proof.sty}\ 
+(Tatsuta 1990) is needed. It is distributed together with \PESC.
+The command also makes a system call to perform the \LaTeX\  processing and show
+the xdvi imade on the background.
+The command only works for the calculi G3i and G3ip.
+
+\ssubsection{print history in a file}{\verb6h6 [file]}
+prints the sequence of command lines entered during the session into file.
+The {\tt h}\ command line itself is not included.
+The default file name is {\tt myhistory.txt}. Old files are overwritten without 
+warning.
+
+\ssubsection{help}{\verb6?6}
+shows a synopsis of available commands.
+
+\ssubsection{manual}{\verb6m6}
+runs \LaTeX\ on the manual file {\tt manual.tex} and shows the xdvi image on the
+background.
+
+shows a synopsis of available commands.
+
+\ssubsection{quit}{\verb6q6}
+terminates the \PESC\ session. 
+The sequence of command lines entered during the session (except the 
+{\tt q}\ itself) are written into the file {\tt myhistory.txt}.
+Old files are overwritten without warning.
+
+
+
+\newcommand{\kleene}[2]{$\{$ #1 $\}^{\mbox{\tt #2}}$}
+\newcommand{\gives}{$\; ::= \; $}
+\newcommand{\altern}{$\mid$}
+\newcommand{\option}[1]{\sugmap{\mbox{#1}}}
+\newcommand{\eg}{}%{e.g.\ }
+
+
+
+\section{The syntax of sequents, formulae, and axioms}
+
+The only occasion in which the user of \PESC\ has to type in a sequent is as
+an argument of a refine ({\tt r}) command. In addition, terms must be typed
+in instantiation ({\tt i}) commands. Proofs and inference rules need never be typed.
+If the user wants to enter his own nonlogical axioms from an axiom file,
+he will have to follow a limited syntax of formulae. This section will explain the
+syntax of sequents, formulae, and terms that is recognized by the \PESC\ parser.
+The expressions that \PESC\ prints out may differ from this syntax; the \LaTeX\
+output certainly does.
+
+{\bf Junk}, that is, spaces, tabulators, and newlines, may appear between
+any items, but not, of course, inside identifiers. In some cases, the presence of
+junk is necessary for the parser to tell where one identifier ends and the next 
+one begins.
+
+The syntax is given in Backus-Naur style, using \altern\ for alternatives,
+\option{}\ for optionality, and \kleene{}{t}\ for lists separated by the token
+{\tt t}. The last column of each table shows
+an example string satisfying the definition of that row.
+
+
+
+\subsection{Sequents and formulae}
+
+A sequent is a pair of (possibly empty) contexts separated by the double 
+arrow \verb6=>6. Contexts are lists of formulae separated by commas. 
+\bequ
+\begin{tabular}{lcl|l}
+Sequent & \gives\  &  \option{Context}\ \verb6=>6 \option{Context} 
+                   &  \eg \verb6A, B => B, C, A6 \\
+Context & \gives\  &  \kleene{Formula}{,} &  \eg \verb6A & B, C6
+\end{tabular}
+\enqu
+Formulae themselves are those of predicate calculus: conjunctions, disjunctions, 
+implications, negations, and universal and existential quantifications.
+Logically simple formulae fall into three categories: predications,
+schematic formulae, and the absurdity $\bot$, of which the last-mentioned one is not
+counted as an atomic formula.
+\bequ
+\begin{tabular}{lcl|l}
+Formula & \gives\  &  Atom & \eg \verb6Apt(a,b)6 \\
+        & \altern\ &  Formula \verb6&6  Formula & \eg \verb6A & B6  \\
+        & \altern\ &  Formula \verb6v6  Formula & \eg \verb6A v B6  \\
+        & \altern\ &  Formula \verb6->6 Formula & \eg \verb6A -> B6  \\
+        & \altern\ &  \verb6~6 Formula & \eg \verb6~A6  \\
+        & \altern\ &  \verb6_|_6 & \eg \verb6_|_6 \\
+        & \altern\ &  \verb6(/A6 Var \verb6)6 Formula & \eg \verb6(/Ax)B(x)6  \\
+        & \altern\ &  \verb6(/E6 Var \verb6)6 Formula & \eg \verb6(/Ex)B(x)6  \\
+Atom    & \gives\  &  Scheme \option{ArgList} & \eg \verb6A(x,y,z)6  \\
+        & \altern\ &  Predicate \option{ArgList} & \eg \verb6Apt(x,y)6  \\
+        & \altern\ &  Term InfixPred Term & \eg \verb62 < 36  
+\end{tabular}
+\enqu
+Formulae are grouped in accordance with their {\bf precedences},
+which are the usual ones, from stronger to weaker: 
+simple and quantified and negation, conjunction and disjunction, implication.
+These precedences are overridden by the use of parentheses.
+
+
+\subsection{Argument lists and terms}
+
+Argument lists are lists of terms in parentheses, and terms are either
+parametres or variables or constants, the last-mentioned oprionally followed by
+an argument list.
+\bequ
+\begin{tabular}{lcl|l}
+ArgList & \gives\  &  \verb6(6 \kleene{Term}{,}  \verb6)6  & \eg \verb6(x,y,z)6 \\
+Term    & \gives\  &  Variable  & \eg \verb6x6 \\
+        & \altern\ &  Parametre  & \eg \verb6?c6 \\ 
+        & \altern\ &  Constant \option{ArgumentList}  & \eg \verb6pi6 \\
+        & \altern\ &  Term InfixFun Term  & \eg \verb6x + 26 
+\end{tabular}
+\enqu
+A notion of precedence would make sense for infix terms, but there is so far none
+in \PESC. Nested infix terms should thus be disambiguated by parentheses.
+
+
+\subsection{Identifiers}
+
+In the syntactic rules above, several classes of identifiers have been presupposed.
+The parser of \PESC\ keeps them disjoint, to avoid the need of lookup in a 
+dictionary. Thus they are different combinations of capital and small letters,
+digits, and other characters. No junk (e.g.\ space) is tolerated inside an 
+identifier.
+\bequ
+\begin{tabular}{lcl|l}
+Scheme    & \gives\  & \kleene{Capital}{}  & \eg \verb6A6 \\
+Predicate & \gives\  & Capital \kleene{Small}{}  & \eg \verb6Apt6 \\
+Variable  & \gives\  & Small \kleene{\verb6'6}{}  & \eg \verb6x''6 \\
+Parametre & \gives\  & \verb6?6 Variable  & \eg \verb6?c''6 \\
+Constant  & \gives\  & Small \kleene{Small}{}  & \eg \verb6pi6 \\
+          & \altern\ & \kleene{Digit}{}  & \eg \verb61236 \\
+InfixPred & \gives\  & \verb6=6 \altern\ \verb6<6 \altern\ \verb6>6 
+                                \altern\ \verb6#6  & \eg \verb6>6 \\
+          & \altern\ & \verb6\6 \kleene{Letter}{}  & \eg \verb6\leq6 \\
+InfixFun  & \gives\  & \verb6+6 \altern\ \verb6-6 \altern\ \verb6*6 
+                     & \eg \verb6+6 \\
+          & \altern\ & \verb6\6 \kleene{Letter}{}  & \eg \verb6\circ6 \\
+\end{tabular}
+\enqu
+Notice that the definition of infix predicates and functions allows the
+use of the mathematical symbolism of \LaTeX. Also notice that, since
+there is no distinction in \LaTeX\ symbols between predicates and 
+individual functions, parentheses are needed if both are present.
+For instance, the \LaTeX/\PESC\ formula
+\begin{verbatim}
+  c \leq a \wedge b
+\end{verbatim}
+is ambiguous between whether \verb6\wedge6 or \verb6\leq6 is the predicate,
+and the normal way of reading it is achieved by
+\begin{verbatim}
+  c \leq (a \wedge b)
+\end{verbatim}
+Since the intended structure is clear for the human reader, the \LaTeX\ output is 
+still
+\[
+c \leq a \wedge b
+\]
+
+
+
+\subsection{Axioms}
+
+As shown in section 6 of Negri \&\ von Plato (1999), certain kinds of formulae
+can be interpreted as sequent calculus rules that preserve the possibility of
+cut elimination and are hence favourable for proof search. These formulae are
+implications with conjunctions of atoms on their left-hand sides, and
+disjunctions of atoms on their right-hand sides. Either side can be empty.
+An empty left-hand side is represented by the omission of the implication sign.
+An empty right-hand side is represented by the absurdity $\bot$. 
+Alternatively, the negation of a left-hand side is interpreted as its
+impication of absurdity; parentheses are not strictly necessary, 
+since the whole conjunction must be in the scope of the negation.
+\bequ
+\begin{tabular}{lcl|l}
+Axiom     & \gives\  &  LeftSide  \verb6->6  RightSide & \eg \verb6x=y -> y=x6 \\
+          & \altern\ &  RightSide & \eg \verb60=06 \\
+          & \altern\ &  \verb6~6 LeftSide & \eg \verb6~ x#x6 \\
+LeftSide  & \gives\  &  \kleene{Atom}{\&}  & \eg \verb6x<y & y<z6 \\
+RightSide & \gives\  &  \kleene{Atom}{v}   & \eg \verb6x#z v y#z6 \\
+          & \altern\ &  \verb6_|_6         & \eg \verb6_|_6 
+\end{tabular}
+\enqu
+Atoms are like in Section 4.1 above, with two exceptions:
+\bequ
+Schematic letters are not permitted in atoms, but only constant predicates.
+
+Parametres (variables prefixed by \verb6?6) are not recognized in atoms. 
+Instead, all those variables that occur on the right-hand-side but not 
+on the left-hand-side are treated as parametres.
+\enqu
+In axiom files, each axiom is preceded by an identifier to be used as
+a rule label. This identifier can contain any characters except junk.
+The second example of the following section shows an example axiom file.
+
+An axiom file may contain {\em comments}, which are lines beginning with
+\verb6--6. Comments are ignored, except the first one, which has a special effect:
+the part of the file preceding that comment is passed to \LaTeX\ as it is,
+permitting the user to define macros for notation.
+Thus an axiom file must contain at least one comment;
+otherwise it is interpreted as empty.
+
+
+\subsection{Examples of sequents and axioms}
+
+Here are some well-formed \PESC\ sequents and their \LaTeX\ printouts:
+\bequ
+\verb6=>6
+
+$\Rightarrow$
+
+\verb6A & B => A, B6 
+
+$A \&  B \Rightarrow  A, B$
+
+\verb6=> ~~(A & B) -> ~~A & ~~B6
+
+$\Rightarrow \sim\sim (A \& B) \supset \sim \sim A \& \sim \sim B$
+
+\verb6(/Ey)(/Ax)C(x,y) => (/Ax)(/Ey)C(x,y)6
+
+$(\exists y)(\forall x)C(x,y) \Rightarrow  (\forall x)(\exists y)C(x,y)$
+
+\verb6=> (/Ax)(x > 0 -> (/Ey)(y \leq (2 \div x) & y \geq 0))6
+
+$\Rightarrow (\forall x)(x > 0 \supset (\exists y)(y \leq 2 \div x \& y \geq 0))$
+\enqu
+The second example is an axiom file and the corresponding rules in \LaTeX\ output:
+some axioms of the theory of lattices from section 6.6 of 
+Negri \&\ von Plato (1999):
+\begin{verbatim}
+  %% this time no macros for lattice theory
+  -- axioms of lattice theory
+  Mtl    (a \wedge b) \leq a
+  Mtr    (a \wedge b) \leq b
+  Jnl    a \leq (a \vee b)
+  Jnr    b \leq (a \vee b)
+  Unimt  c \leq a & c \leq b -> c \leq (a \wedge b)
+  Unijn  a \leq c & b \leq c -> (a \vee b) \leq c 
+  Ref    a \leq a 
+  Trans  a \leq b & b \leq c -> a \leq c
+\end{verbatim}
+\[
+\infer[{\scriptstyle Mtl}]{
+\Gamma  \Rightarrow  \Delta 
+}{
+a \wedge b \leq a, \Gamma  \Rightarrow  \Delta 
+}
+\]
+\[
+\infer[{\scriptstyle Mtr}]{
+\Gamma  \Rightarrow  \Delta 
+}{
+a \wedge b \leq b, \Gamma  \Rightarrow  \Delta 
+}
+\]
+\[
+\infer[{\scriptstyle Jnl}]{
+\Gamma  \Rightarrow  \Delta 
+}{
+a \leq a \vee b, \Gamma  \Rightarrow  \Delta 
+}
+\]
+\[
+\infer[{\scriptstyle Jnr}]{
+\Gamma  \Rightarrow  \Delta 
+}{
+b \leq a \vee b, \Gamma  \Rightarrow  \Delta 
+}
+\]
+\[
+\infer[{\scriptstyle Unimt}]{
+c \leq a, c \leq b, \Gamma  \Rightarrow  \Delta 
+}{
+c \leq a \wedge b, c \leq a, c \leq b, \Gamma  \Rightarrow  \Delta 
+}
+\]
+\[
+\infer[{\scriptstyle Unijn}]{
+a \leq c, b \leq c, \Gamma  \Rightarrow  \Delta 
+}{
+a \vee b \leq c, a \leq c, b \leq c, \Gamma  \Rightarrow  \Delta 
+}
+\]
+\[
+\infer[{\scriptstyle Ref}]{
+\Gamma  \Rightarrow  \Delta 
+}{
+a \leq a, \Gamma  \Rightarrow  \Delta 
+}
+\]
+\[
+\infer[{\scriptstyle Trans}]{
+a \leq b, b \leq c, \Gamma  \Rightarrow  \Delta 
+}{
+a \leq c, a \leq b, b \leq c, \Gamma  \Rightarrow  \Delta 
+}
+\]
+
+
+\section{Usage and compiling}
+
+\subsection{Running \PESC}
+
+The executable \PESC\ program consists of a shell script, named
+{\tt pesca}.
+If this file exists in one's path, one can start a \PESC\ session by
+just typing the name of the file and pressing enter in the shell:
+\begin{verbatim}
+  shell$ ./pesca
+\end{verbatim}
+The script calls the Haskell
+interpreter {\tt hugs}\ in the batch mode, {\tt runhugs}.
+To obtain hugs, consult the hugs home page mentioned in the references.
+
+
+
+\subsection{Compiling \PESC}
+
+\PESC\ is a small and light program, which hardly needs to be compiled to
+be usable. Anyone who wishes to do so, however, can use
+e.g.\ {\tt hbc}\ or {\tt ghc}. The {\tt Main}\ module lies in the file
+{\tt Editor.hs}.
+
+
+
+\section{The implementation}
+
+This section will go through the basic data structures and algorithms of \PESC,
+and thereby also explain its main theoretical ideas. The presentation is given in
+Haskell code. Some of it may be readable to anyone familiar with type theory or some
+functional programming language; the Haskell home page mentioned in references
+gives more information.
+
+
+\subsection{The structure of the source code}
+
+Here is a wc dump of the \PESC\ source files. Each file
+contains a module of the same name. The sizes of the modules may
+still change a bit, but the total code will not greatly differ from
+the indicated 1396 lines, which includes comments and empty lines. 
+\begin{verbatim}
+    178     923    5967 Axioms.hs      -- operations on nonlogical axioms
+    193     966    7249 Calculi.hs     -- predefined calculi
+    198     968    7582 Editor.hs      -- dialogue and command language
+    103     598    4410 Interaction.hs -- refinement, proof search, etc
+    169     993    6906 Natural.hs     -- natural deduction
+     82     429    2613 PSequent.hs    -- parsing
+    112     616    3756 PrSequent.hs   -- printing 
+    161     939    4249 PrelSequent.hs -- prelude : auxiliary functions
+    200     980    6457 Sequent.hs     -- basic data types and functions
+   1396    7412   49189 total
+\end{verbatim}
+
+
+\subsection{The module {\tt Sequent}---basic data types and functions}
+
+This module defines the {\bf abstract syntax}\ of sequents, formulae, 
+singular terms, proofs, etc. On the level of abstract syntax, all these
+expressions are Haskell data objects, which could also be called
+{\bf syntax trees}. In user input and \PESC\ output, syntax trees are represented by
+{\bf strings}\ of characters. The relation between syntax trees and strings
+is defined by the {\bf parsing}\ and {\bf printing}\ functions explained in 
+the next section. 
+
+With the exception of the communication with the user, \PESC\ always operates 
+on syntax trees and not on strings. There are lots of operations defined by
+pattern matching on the basic types of syntax trees: {\tt Sequent}, {\tt Formula},
+{\tt Term}, {\tt Proof}, {\tt AbsRule}. %{\tt }
+The operations defined in the module {\tt Sequent}\ include substitution and
+tree-node numbering. Most of this material is unsurprising. But there are a
+couple of features that identify \PESC\ as an editor precisely for
+shared-context multiset calculi.
+
+The definition that expresses the top-down determinacy of \PESC\ (cf.\ Section 1)
+is the definition of abstract inference rules:
+\begin{verbatim}
+  type AbsRule = Sequent -> Maybe [Either Sequent Ident]
+\end{verbatim}
+A rule is a function that takes a conclusion sequent as its argument and returns
+either a list of premises or a failure. Returning an empty list of premises means
+that the proof of the conclusion is complete. The premises can be either sequents 
+or parametre identifiers. (We already argued, in Section 2.2 above, that parametres
+are really premises.)
+
+Sequents are treated as pairs of multisets of formulae. The definition of the 
+type of sequents is as pairs of lists rather than multisets: the multiset aspect
+is implicit in various functions that consider variants of these lists obtained by
+making one formula in turn the active formula. In most cases, this is enough, and
+it is not necessary to consider all permutations.
+
+Some calculi restrict the succedents of sequents to be single formulae. \PESC\ does
+not use a distinct type for these calculi: it simply is the property of certain 
+calculi, such as G3ip, that the rules never require nor produce multi-succedent
+sequents.
+
+
+
+\subsection{The modules {\tt PSequent}\ and {\tt PrSequent}---parsing and printing}
+
+Parsing follows the top-down method explained in Wadler (1985). The basic 
+{\bf parsing combinators}\ are defined in the module {\tt PrelSequent}.
+We have chosen to define parsing independently of an environment that could, for
+instance, give lists of constants and predicates: because of this, we have had
+to distinguish between different types of identifiers, as explained in 
+Section 4.3 above. In some crucial places, such as in parsing formulae with infix
+connectives, the parser is optimized by left factorization and thus does not 
+strictly follow the abstract syntax.
+
+The printing functions first produce terminal output for \PESC\ sessions.
+A simple string transformer {\tt makeLatex}\ produces \LaTeX\ code from this,
+except in one case: proof trees. The proof trees printed on terminal do not
+always represent well the structure of the proof, and they become practically
+unreadable when the proofs grow. \LaTeX\ proof trees are printed separately, 
+directly from syntax trees.
+
+
+\subsection{The module {\tt Calculi}---predefined calculi}
+
+Some intuitionistic and classical calculi are defined directly as
+sets of abstract rules. Because abstract rules are functions, they cannot
+be read from separate files at runtime, but must be compiled into \PESC. 
+We also considered a special syntax that could be used for reading calculi
+from files, but finally restricted this to nonlogical axioms: there is,
+after all, so much variation and irregularity in the rules, that the
+syntax and the operations on it become complicated, and are not
+guaranteed to cope with ``arbitrary sequent-calculus rules''.
+
+At least when using \PESC\ in the interpreter hugs, it should be easy to 
+experiment with new calculi by editing the file {\tt Calculi.hs}. No other
+files need be edited.
+
+
+\subsection{The module {\tt Interaction}---refinement and proof search}
+
+This module defines the central proof search functions: refinement,
+instantiation, undoing, and automatic search. All of these operations
+are based on the underlying operation of replacing a subtree by another tree,
+\begin{verbatim}
+  replace :: Proof -> [Int] -> Proof -> Proof
+\end{verbatim}
+where lists of integers denote subtrees. Another underlying operation is to
+list all those rules of a clculus that apply to a given sequent,
+\begin{verbatim}
+  applicableRules :: 
+    AbsCalculus -> Sequent -> [((Ident,AbsRule),Obligations)]
+\end{verbatim}
+Automatic proving calls this function in performing top-down proof search,
+following the methods of Wadler (1985) just like parsing.
+
+
+\subsection{The module {\tt Editor}---dialogue and command language}
+
+This is the {\tt Main}\ module, which also contains the definition of the
+command language and the parser of the latter, as well as the help message.
+The central function is the execution of commands, 
+\begin{verbatim}
+  exec :: Command -> (AbsCalculus,Proof) -> (Proof,String)
+\end{verbatim}
+which works in an environment of a current calculus and a current proof,
+and possibly changes it, by calling the functions of {\tt Interaction}.
+
+
+\subsection{The module {\tt Axioms}---operations on nonlogical axioms}
+
+This module defines a format for a special kind of rules, nonlogical axioms.
+These axioms are just pairs of lists of atoms, which are easy read from
+familiar logical notation (cf.\ Section 4.4 above). Their translation into
+abstract \PESC\ rules is somewhat complicated because of the presence
+of implicit parametres.
+
+
+\subsection{The module {\tt Natural}---translation into natural deduction}
+
+This module defines a translation from sequent calculus proofs
+to natural deduction in a rather {\em ad hoc} way, which only applies
+to the calculi G3i and G3ip. Systematizing and extending the
+translation would be a welcome contribution to \PESC!
+
+
+\section{Known bugs and defects}
+
+\PESC\ is an experimental system still under development.
+Contributions to this Section are thus welcome. As of \today, the most
+urgent problems are the following:
+\bequ
+The printing of proof trees on terminal is inadequate for large branching
+proofs.
+
+In \LaTeX\ printing, it would be nice to put multicharacter identifiers
+into \verb6\mbox6es.
+
+The equality rules in {\tt Calculus}\ are unfinished.
+\enqu
+In the Haskell code, those lines that we find obscure or suboptimal have been
+suffixed by three hyphens, \verb6---6.
+
+
+\section*{References}
+
+\setlength{\parindent}{0mm}
+\setlength{\parskip}{1.2mm}
+
+G.\ Gentzen.
+Untersuchungen \"uber das logische Schlie\ss en.
+{\em Mathematische Zeitschrift}, 39:176--210 and 405--431, 1934.
+
+HBC home page, \verb6http://www.cs.chalmers.se/~augustss/hbc/hbc.html6
+
+Hugs home page, \verb6http://www.haskell.org/hugs/6
+
+S.\ Kleene,
+{\em Introductin to Metamathematics},
+North-Holland, Amsterdam, 1952.
+
+L.\ Magnusson,
+{\em The implementation of ALF---a proof editor based on Martin-L\"of's
+mono\-morphic type theory with explicit substitution},
+PhD thesis, Department of Computing Science, 
+Chalmers University of Technology,
+Gothenburg, 1994.
+
+P.\ {Martin-L\"{o}f}.
+{\em Intuitionistic Type Theory}.
+Bibliopolis, Naples, 1984.
+
+S.\ Negri \&\ J.\ von Plato,
+``Structural Proof Theory'', manuscript, University of Helsinki, 1999.
+
+\PESC\ home page, to appear.
+
+K.\ Sch\"utte, 
+{\em Proof Theory}, Springer, 1977.
+
+M.\ Tatsuta,
+{\tt proof.sty}\ (Proof Figure Macros), \LaTeX\ style file, 1990.
+
+A.\ Troelstra \&\ H.\ Schwichtenberg,
+{\em Basic Proof Theory},
+Cambridge University Press,
+1996.
+
+P.\ Wadler,
+``How to replace failure by a list of successes'',
+{\em Proceedings of Conference on Functional Programming
+Languages and Computer Architecture}, pp.\ 113--128, 
+{\em Lecture Notes in Computer Science}\ vol.\ 201.
+Springer, Heidelberg, 1985.
+
+
+\newpage
+
+
+
+
+\section*{Appendix: Some calculi}
+
+The rules are from Negri \&\ von Plato (1999).
+
+\newcommand{\him}{\supset}
+\newcommand{\seq}{\Rightarrow}
+\newcommand{\himmih}{\supset \subset}
+\newcommand{\dotseq}{\stackrel{\stackrel{\vdots}{ \ }}{\Rightarrow}}
+
+
+\newcommand{\noin}{\noindent}
+\newcommand{\vsk}{\vskip 5pt}
+\newcommand{\npar}{\vskip 5pt \noindent}
+\newcommand{\tbf}{\textbf}
+\newcommand{\Gm}{\Gamma}
+\newcommand{\Dlt}{\Delta}
+\newcommand{\eps}{\mbox{\scriptsize $\ \in \ $}}
+\newcommand{\nleqs}{\mbox{\scriptsize $\ \nleqslant\ $}}
+\newcommand{\less}{\mbox{\scriptsize $\ < \ $}}
+\newcommand{\neqs}{\mbox{\scriptsize $\ \neq \ $}}
+\newcommand{\eqs}{\mbox{\scriptsize $\ = \ $}}
+
+\centerline{\mbox{{\bf G$n$ip}}}
+\[
+\begin{array}{lll}
+\qquad
+P,\Gamma\seq P  
+\qquad\qquad
+&
+\infer[\scriptstyle L\bot]{\bot,\Gamma\seq C}{}
+\qquad\qquad
+&
+\infer[\scriptstyle R\him]{\Gamma\seq A\him B}{A,\Gamma\seq B } 
+\end{array}
+\]
+\[
+\begin{array}{ll}
+\infer[\scriptstyle L\&]{A\& B,\Gamma\seq C}{A,B,\Gamma\seq C}
+\qquad\qquad
+&\infer[\scriptstyle R\&]{\Gamma\seq A\& B}{\Gamma\seq A & \Gamma\seq B}\\*[10pt]
+\infer[\scriptstyle L\vee]{A\vee B,\Gamma\seq C}{A,\Gamma\seq C & B,\Gamma\seq C}
+\qquad
+&\infer[\scriptstyle R\vee1]{\Gamma\seq A\vee B}{\Gamma\seq A} \qquad
+\infer[\scriptstyle R\vee2]{\Gamma\seq A\vee B}{\Gamma\seq B}
+\end{array}
+\]
+
+%\vskip 10pt
+
+\centerline{\mbox{{\bf G3ip = G$n$ip +}}}
+\[
+\infer[\scriptstyle L\him]{A\him B,\Gamma\seq C}{A\him B,\Gamma\seq A & B,\Gamma\seq C}
+\]
+
+\centerline{\mbox{{\bf G4ip = G$n$ip + }}}
+\[
+\begin{array}{ll}
+\qquad \infer[\scriptstyle L0\him]{P,P\him B,\Gm\seq E}{P,B,\Gm\seq E}
+\qquad
+&
+\infer[\scriptstyle L\&\him]{C\& D\him B,\Gm\seq E}{C\him(D\him B),\Gm\seq E}
+\\*[10pt]
+\qquad \infer[\scriptstyle L\lor\him]{C\lor D\him B,\Gm\seq E}{C\him B, D\him B,\Gm\seq E}  
+\qquad
+&
+\infer[\scriptstyle L\him\him]{(C\him D)\him B,\Gm\seq E}{C,D\him B,\Gm\seq D
+& B,\Gm\seq E}
+\end{array}
+\]
+
+\centerline{\mbox{{\bf G3cp}}}
+\[
+\begin{array}{ll}
+%%\mbox{{\bf Logical axiom:}}
+%%\\*[10pt]
+P,\Gamma\seq \Dlt,P 
+\qquad\qquad &
+\infer[\scriptstyle L\bot]{\perp,\Gamma\seq \Dlt}{}
+\\*[10pt]
+%%\mbox{{\bf Logical rules:}}
+%%\\*[10pt]
+\infer[\scriptstyle L\&]{A\& B,\Gamma\seq \Dlt}{A,B,\Gamma\seq \Dlt}
+\qquad\qquad
+&\infer[\scriptstyle R\&]{\Gamma\seq \Dlt,A\& B}{\Gamma\seq \Dlt,A & \Gamma\seq\Dlt, B}\\*[10pt]
+\infer[\scriptstyle L\vee]{A\vee B,\Gamma\seq \Dlt}{A,\Gamma\seq \Dlt & B,\Gamma\seq \Dlt}
+\qquad
+&\infer[\scriptstyle R\vee]{\Gamma\seq \Dlt,A\vee B}{\Gamma\seq \Dlt,A,B} 
+\\*[10pt]
+\infer[\scriptstyle L\him]{A\him B,\Gamma\seq \Dlt}{\Gamma\seq \Dlt,A & B,\Gamma\seq \Dlt}
+\qquad
+&\infer[\scriptstyle R\him]{\Gamma\seq \Dlt,A\him B}{A,\Gamma\seq \Dlt,B } 
+\end{array}
+\]
+
+\centerline{\mbox{{\bf G3i = G3ip +}}}
+\[
+\begin{array}{llll}
+\infer[\scriptstyle L\forall]{\forall xA, \Gm \seq C}
+                             {A(t/x),\forall xA, \Gm \seq C}
+& \infer[\scriptstyle R\forall]{\Gamma\seq \forall xA}{\Gamma\seq A(y/x)} 
+&
+\infer[\scriptstyle L\exists]{\exists xA,\Gamma\seq C}{A(y/x),\Gamma\seq C}
+
+& \infer[\scriptstyle R\exists]{\Gamma\seq \exists xA}{\Gamma\seq A(t/x)}
+\end{array}
+\]
+
+\centerline{\mbox{{\bf G3c = G3cp +}}}
+\[
+\begin{array}{ll}
+\infer[\scriptstyle L\forall]{\forall xA, \Gm \seq \Dlt}
+                             {A(t/x),\forall xA,\Gm \seq \Dlt}
+\qquad\qquad \qquad
+& \infer[\scriptstyle R\forall]{\Gamma\seq \Dlt , \forall xA}{\Gamma\seq \Dlt,A(y/x)} 
+\\*[10pt]
+\infer[\scriptstyle L\exists]{\exists xA,\Gamma\seq \Dlt}{A(y/x),\Gamma\seq \Dlt}
+\qquad \qquad \qquad
+& \infer[\scriptstyle R\exists]{\Gamma\seq \Dlt,\exists xA}{\Gamma\seq \Dlt,\exists xA,A(t/x)}
+\end{array}
+\]
+
+
+\end{document}
